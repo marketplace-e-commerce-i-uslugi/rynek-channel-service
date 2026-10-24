@@ -61,10 +61,10 @@ Wiersze z §17, w których występuje `channel` (publikuje lub słucha).
 
 Etap z §19: 1. `api-gateway`, `identity-service`, `channel-service` — konta i kanały.
 
-## Do rozstrzygnięcia
+## Wyjątki routingu
 
-Gateway (§2) kieruje ruch po prefiksie ścieżki, a poniższe endpointy leżą pod prefiksem innego serwisu. Możliwe rozwiązania: szczegółowe trasy w gateway przed trasami prefiksowymi albo zmiana ścieżek.
+Gateway (§2) kieruje ruch po prefiksie ścieżki, a poniższe endpointy leżą pod prefiksem innego serwisu. Gateway obsługuje je trasami szczegółowymi (`order: -1`), które mają pierwszeństwo przed trasami po prefiksie. Ścieżki pozostają bez zmian (decyzja z 2026-10-24). Test `RoutingTests` w `rynek-api-gateway` sprawdza, czy każda z nich trafia do właściwego serwisu.
 
-- `/api/v1/channels/{channelId}/videos`: według dokumentu należy do `tiktok-integration-service`, ale prefiks w gateway kieruje do `channel-service`.
-- `/api/v1/channels/{channelId}/reviews`, `/api/v1/channels/{channelId}/rating-summary`: według dokumentu należy do `engagement-service`, ale prefiks w gateway kieruje do `channel-service`.
-- `/api/v1/users/me/following`: według dokumentu należy do `channel-service`, ale prefiks w gateway kieruje do `identity-service`.
+- `/api/v1/channels/{channelId}/videos`: należy do `tiktok-integration-service` (prefiks wskazuje `channel-service`).
+- `/api/v1/channels/{channelId}/reviews`, `/api/v1/channels/{channelId}/rating-summary`: należy do `engagement-service` (prefiks wskazuje `channel-service`).
+- `/api/v1/users/me/following`: należy do `channel-service` (prefiks wskazuje `identity-service`).
