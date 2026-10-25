@@ -2,7 +2,7 @@
 
 Mikroserwis platformy **Rynek**: `channel-service` — kanał sprzedawcy i obserwowanie
 
-Zakres, endpointy i zdarzenia są opisane w `README.md`. Kanały i obserwowanie działają (PostgreSQL + Flyway, Spring Security Resource Server z JWKS identity). Awatar, baner i zgłoszenie weryfikacji zwracają 501 (czekają na media-service). Nie dodawaj logiki bez wyraźnej prośby.
+Zakres, endpointy i zdarzenia są opisane w `README.md`. Kanały i obserwowanie działają (PostgreSQL + Flyway, Spring Security Resource Server z JWKS identity), awatar, baner i dokumenty weryfikacji przychodzą z media-service. Nie dodawaj logiki bez wyraźnej prośby.
 
 ## Wspólne konwencje API (§1 dokumentu architektury)
 
@@ -35,7 +35,7 @@ Legenda kolumny **Dostęp**: `pub` = bez logowania, `user` = zalogowany, `seller
 
 ## Struktura kodu
 
-- `pl.rynek.channel.api`: kontrolery REST (pełne ścieżki w adnotacjach), `api.dto`: rekordy żądań i odpowiedzi, `common.NotImplemented`: odpowiedź 501
-- `channels`: kanał, handle, NIP; `follow`: obserwowanie i dzwonek; `identity`: klient `/internal` identity-service; `config`: security, oglądający na endpointach `pub` (`Viewer`), błędy RFC 7807 po polsku
+- `pl.rynek.channel.api`: kontrolery REST (pełne ścieżki w adnotacjach), `api.dto`: rekordy żądań i odpowiedzi
+- `channels`: kanał, handle, NIP; `follow`: obserwowanie i dzwonek; `identity`, `media`: klienci `/internal` identity-service i media-service; `config`: security, oglądający na endpointach `pub` (`Viewer`), błędy RFC 7807 po polsku
 - Konfiguracja: `src/main/resources/application.yml`
 - Port lokalny: 8082

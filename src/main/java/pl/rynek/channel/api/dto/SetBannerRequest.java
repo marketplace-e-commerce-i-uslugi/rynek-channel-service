@@ -1,7 +1,11 @@
 package pl.rynek.channel.api.dto;
 
-/**
- * Ciało żądania: Ustawienie banera (mediaId). Pola do uzupełnienia razem z kontraktem w rynek-contracts.
- */
-public record SetBannerRequest() {
+import java.util.UUID;
+
+import jakarta.validation.constraints.NotNull;
+
+/** Plik z media-service o przeznaczeniu {@code BANNER}, wysłany przez właściciela kanału. */
+public record SetBannerRequest(
+        @NotNull(message = "Wybierz zdjęcie.")
+        UUID mediaId) {
 }

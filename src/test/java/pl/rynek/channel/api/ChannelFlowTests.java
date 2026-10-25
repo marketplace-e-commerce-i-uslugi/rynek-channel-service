@@ -32,6 +32,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -42,10 +43,11 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.web.server.ResponseStatusException;
 import pl.rynek.channel.TestcontainersConfig;
 import pl.rynek.channel.identity.IdentityClient;
+import pl.rynek.channel.media.MediaClient;
 
 /**
  * Kanały i obserwowanie na prawdziwym PostgreSQL. Tokeny w testach to {@code user-<uuid>} (dekoder zastępuje JWKS
- * identity), a wywołania identity są zastąpione atrapą.
+ * identity), a wywołania identity i media-service są zastąpione atrapami.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -60,6 +62,12 @@ class ChannelFlowTests {
 
     @MockitoBean
     IdentityClient identity;
+
+    @MockitoBean
+    MediaClient mediaClient;
+
+    @Autowired
+    JdbcClient jdbc;
 
     @BeforeEach
     void tokensAreUserIds() {
@@ -237,12 +245,94 @@ class ChannelFlowTests {
     }
 
     @Test
-    void mediaDependentEndpointsStillReturn501() throws Exception {
+    void internalChannelByOwner() throws Exception {
         UUID owner = UUID.randomUUID();
         String id = createdId(owner);
+        mvc.perform(get("/internal/channels/by-owner/" + owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.address").value(nullValue()));
+        mvc.perform(get("/internal/channels/by-owner/" + UUID.randomUUID())).andExpect(status().isNotFound());
+        mvc.perform(get("/internal/channels/by-owner/nie-uuid")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void ownerSetsAvatarAndBannerFromOwnUploads() throws Exception {
+        UUID owner = UUID.randomUUID();
+        String id = createdId(owner);
+        UUID avatar = file(owner, "AVATAR", "http://localhost:8333/rynek-media-public/avatar/a1");
+        UUID banner = file(owner, "BANNER", "http://localhost:8333/rynek-media-public/banner/b1");
+
+        media(owner, id, "avatar", avatar)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.avatarUrl").value("http://localhost:8333/rynek-media-public/avatar/a1"));
+        media(owner, id, "banner", banner)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bannerUrl").value("http://localhost:8333/rynek-media-public/banner/b1"));
+        mvc.perform(get("/api/v1/channels/" + id))
+                .andExpect(jsonPath("$.avatarUrl").value("http://localhost:8333/rynek-media-public/avatar/a1"))
+                .andExpect(jsonPath("$.bannerUrl").value("http://localhost:8333/rynek-media-public/banner/b1"));
+
+        // Baner jako awatar, cudzy plik, cudzy kanał, brak pliku.
+        media(owner, id, "avatar", banner)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Ten plik wysłano w innym celu. Wyślij go ponownie."));
+        media(owner, id, "avatar", file(UUID.randomUUID(), "AVATAR", "http://x/obcy"))
+                .andExpect(status().isForbidden());
+        media(UUID.randomUUID(), id, "avatar", avatar).andExpect(status().isForbidden());
+        UUID missing = UUID.randomUUID();
+        given(mediaClient.get(missing)).willThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nie znaleźliśmy tego pliku. Wyślij go ponownie."));
+        media(owner, id, "avatar", missing).andExpect(status().isBadRequest());
         mvc.perform(put("/api/v1/channels/" + id + "/avatar").header(HttpHeaders.AUTHORIZATION, bearer(owner))
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isNotImplemented());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Wybierz zdjęcie."));
+    }
+
+    @Test
+    void verificationNeedsBusinessDetailsAndOwnDocuments() throws Exception {
+        UUID owner = UUID.randomUUID();
+        String id = createdId(owner);
+        UUID document = file(owner, "KYC_DOCUMENT", null);
+
+        verification(owner, id, "[\"" + document + "\"]")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Najpierw uzupełnij dane firmy: nazwę, NIP i adres rejestrowy."));
+        businessDetails(owner, id, "{\"companyName\":\"Elektro Market Sp. z o.o.\",\"nip\":\"526-104-08-28\",\"registeredAddress\":\"ul. Handlowa 10, Warszawa\"}")
+                .andExpect(status().isOk());
+        verification(owner, id, "[]")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Dołącz co najmniej jeden dokument."));
+        verification(owner, id, "[\"" + file(owner, "AVATAR", "http://x/a") + "\"]").andExpect(status().isBadRequest());
+        verification(owner, id, "[\"" + file(UUID.randomUUID(), "KYC_DOCUMENT", null) + "\"]").andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/channels/" + id + "/verification").header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(jsonPath("$.status").value("NONE"));
+
+        verification(owner, id, "[\"" + document + "\",\"" + document + "\"]")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+        // Ponowne zgłoszenie (np. dodatkowy dokument) jest dozwolone.
+        verification(owner, id, "[\"" + document + "\"]").andExpect(status().isOk());
+        mvc.perform(get("/api/v1/channels/" + id + "/verification").header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(jsonPath("$.status").value("PENDING"));
+        assertThat(jdbc.sql("SELECT count(*) FROM verification_documents WHERE channel_id = ?")
+                .param(UUID.fromString(id)).query(Integer.class).single()).isEqualTo(1);
+    }
+
+    private UUID file(UUID owner, String purpose, String url) {
+        UUID mediaId = UUID.randomUUID();
+        given(mediaClient.get(mediaId)).willReturn(new MediaClient.MediaFile(mediaId, owner, purpose, "image/png", url));
+        return mediaId;
+    }
+
+    private ResultActions media(UUID user, String channelId, String kind, UUID mediaId) throws Exception {
+        return mvc.perform(put("/api/v1/channels/" + channelId + "/" + kind).header(HttpHeaders.AUTHORIZATION, bearer(user))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"mediaId\":\"" + mediaId + "\"}"));
+    }
+
+    private ResultActions verification(UUID user, String channelId, String documentIds) throws Exception {
+        return mvc.perform(post("/api/v1/channels/" + channelId + "/verification").header(HttpHeaders.AUTHORIZATION, bearer(user))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"documentMediaIds\":" + documentIds + "}"));
     }
 
     private String createdId(UUID owner) throws Exception {

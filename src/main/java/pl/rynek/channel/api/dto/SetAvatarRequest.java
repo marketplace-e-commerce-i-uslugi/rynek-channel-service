@@ -1,7 +1,11 @@
 package pl.rynek.channel.api.dto;
 
-/**
- * Ciało żądania: Ustawienie awatara (mediaId z media-service). Pola do uzupełnienia razem z kontraktem w rynek-contracts.
- */
-public record SetAvatarRequest() {
+import java.util.UUID;
+
+import jakarta.validation.constraints.NotNull;
+
+/** Plik z media-service o przeznaczeniu {@code AVATAR}, wysłany przez właściciela kanału. */
+public record SetAvatarRequest(
+        @NotNull(message = "Wybierz zdjęcie.")
+        UUID mediaId) {
 }

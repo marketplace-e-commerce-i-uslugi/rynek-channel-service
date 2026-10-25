@@ -33,8 +33,6 @@ import pl.rynek.channel.channels.ChannelService;
 import pl.rynek.channel.config.Viewer;
 import pl.rynek.channel.follow.FollowService;
 
-import static pl.rynek.channel.common.NotImplemented.notImplemented;
-
 @RestController
 public class ChannelsController {
 
@@ -91,16 +89,22 @@ public class ChannelsController {
      * Ustawienie awatara (mediaId z media-service). Dostęp: seller.
      */
     @PutMapping("/api/v1/channels/{channelId}/avatar")
-    public void setAvatar(@PathVariable String channelId, @RequestBody SetAvatarRequest request) {
-        throw notImplemented();
+    public ChannelResponse setAvatar(@AuthenticationPrincipal Jwt token, @PathVariable String channelId,
+                                     @Valid @RequestBody SetAvatarRequest request) {
+        UUID userId = userId(token);
+        Channel channel = channels.setAvatar(userId, channelId, request.mediaId());
+        return ChannelResponse.of(channel, follows.stats(channel, Optional.of(userId)));
     }
 
     /**
      * Ustawienie banera (mediaId). Dostęp: seller.
      */
     @PutMapping("/api/v1/channels/{channelId}/banner")
-    public void setBanner(@PathVariable String channelId, @RequestBody SetBannerRequest request) {
-        throw notImplemented();
+    public ChannelResponse setBanner(@AuthenticationPrincipal Jwt token, @PathVariable String channelId,
+                                     @Valid @RequestBody SetBannerRequest request) {
+        UUID userId = userId(token);
+        Channel channel = channels.setBanner(userId, channelId, request.mediaId());
+        return ChannelResponse.of(channel, follows.stats(channel, Optional.of(userId)));
     }
 
     /**
@@ -124,8 +128,10 @@ public class ChannelsController {
      * Zgłoszenie weryfikacji (dokumenty). Dostęp: seller.
      */
     @PostMapping("/api/v1/channels/{channelId}/verification")
-    public void requestVerification(@PathVariable String channelId, @RequestBody RequestVerificationRequest request) {
-        throw notImplemented();
+    public VerificationResponse requestVerification(@AuthenticationPrincipal Jwt token, @PathVariable String channelId,
+                                                    @Valid @RequestBody RequestVerificationRequest request) {
+        return new VerificationResponse(channels.requestVerification(userId(token), channelId, request.documentMediaIds())
+                .getVerificationStatus());
     }
 
     /**

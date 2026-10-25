@@ -108,6 +108,22 @@ public class Channel {
         this.updatedAt = now;
     }
 
+    public void changeAvatar(String url, Instant now) {
+        this.avatarUrl = url;
+        this.updatedAt = now;
+    }
+
+    public void changeBanner(String url, Instant now) {
+        this.bannerUrl = url;
+        this.updatedAt = now;
+    }
+
+    /** Zgłoszenie dokumentów; ponowne zgłoszenie po odrzuceniu lub w trakcie weryfikacji wraca do {@code PENDING}. */
+    public void submitForVerification(Instant now) {
+        this.verificationStatus = VerificationStatus.PENDING;
+        this.updatedAt = now;
+    }
+
     public boolean hasBusinessDetails() {
         return companyName != null;
     }

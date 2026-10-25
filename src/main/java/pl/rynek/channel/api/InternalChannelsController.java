@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import pl.rynek.channel.api.dto.ChannelRefResponse;
+import pl.rynek.channel.api.dto.OwnerChannelResponse;
 import pl.rynek.channel.channels.Channel;
 import pl.rynek.channel.channels.ChannelRepository;
 import pl.rynek.channel.channels.ChannelService;
@@ -39,6 +41,17 @@ public class InternalChannelsController {
     @GetMapping("/internal/channels/{channelId}")
     public ChannelRefResponse getChannel(@PathVariable String channelId) {
         return ChannelRefResponse.of(channelService.get(channelId));
+    }
+
+    /**
+     * Kanał konta (catalog przy tworzeniu oferty). Dostęp: int. Konto bez kanału daje 404.
+     */
+    @GetMapping("/internal/channels/by-owner/{userId}")
+    public OwnerChannelResponse getChannelByOwner(@PathVariable String userId) {
+        UUID owner = uuidOrNull(userId);
+        return (owner == null ? Optional.<Channel>empty() : channels.findByOwnerId(owner))
+                .map(OwnerChannelResponse::of)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "To konto nie ma kanału."));
     }
 
     /**

@@ -2,11 +2,11 @@
 
 `channel-service` — kanał sprzedawcy i obserwowanie
 
-> Status: **kanały i obserwowanie działają**: tworzenie, odczyt (po id i handle), edycja, „O nas”, dane firmy, status weryfikacji, obserwuj / przestań / dzwonek, lista obserwowanych i oba endpointy `/internal`. Awatar, baner i zgłoszenie weryfikacji czekają na media-service i zwracają `501 Not Implemented` (RFC 7807).
+> Status: **wszystkie endpointy działają**: tworzenie, odczyt (po id i handle), edycja, awatar i baner (pliki z media-service), „O nas”, dane firmy, zgłoszenie i status weryfikacji, obserwuj / przestań / dzwonek, lista obserwowanych i endpointy `/internal`. Ocenę dokumentów (VERIFIED/REJECTED) przejmie panel admina.
 
 ## Uruchomienie
 
-Wymaga PostgreSQL z `rynek-infra/local` (baza `channel`) i identity-service (JWKS, przypinanie kanału do konta):
+Wymaga PostgreSQL z `rynek-infra/local` (baza `channel`), identity-service (JWKS, przypinanie kanału do konta) i media-service (awatar, baner, dokumenty):
 
 ```bash
 docker compose -f ../rynek-infra/local/docker-compose.yml up -d
@@ -18,6 +18,7 @@ docker compose -f ../rynek-infra/local/docker-compose.yml up -d
 |---|---|---|
 | `DB_URL`, `DB_USER`, `DB_PASSWORD` | `jdbc:postgresql://localhost:5432/channel`, `channel`, `channel` | Baza serwisu |
 | `IDENTITY_SERVICE_URL` | `http://localhost:8081` | identity-service: JWKS i `PUT /internal/users/{id}/channel` |
+| `MEDIA_SERVICE_URL` | `http://localhost:8084` | media-service: `GET /internal/media/{id}` |
 | `JWT_ISSUER` | `rynek-identity` | Oczekiwany claim `iss` |
 
 Schemat zakłada Flyway (`src/main/resources/db/migration`). Hibernate tylko sprawdza zgodność encji (`ddl-auto: validate`).
@@ -49,6 +50,7 @@ Ekrany: 5 Profil sprzedawcy jako kanał. Zakładki kanału korzystają z innych 
 | GET | `/api/v1/users/me/following` | Lista obserwowanych kanałów (boczne menu, „Obserwowane”) | user |
 | GET | `/internal/channels/{channelId}` | Dane kanału dla innych serwisów | int |
 | GET | `/internal/channels?ids=` | Wsadowo (karty ofert) | int |
+| GET | `/internal/channels/by-owner/{userId}` | Kanał konta (catalog przy tworzeniu oferty) | int |
 
 ## Zachowanie
 
@@ -57,8 +59,11 @@ Ekrany: 5 Profil sprzedawcy jako kanał. Zakładki kanału korzystają z innych 
 - **Endpointy `pub`:** token nie jest wymagany. Ważny token dodaje do kanału `following` i `notificationsOn`, a brak lub zły token oznacza gościa (wtedy oba pola są `null`).
 - **Obserwowanie:** `POST`/`DELETE /follow` są idempotentne (204). Dzwonek jest domyślnie wyłączony. `PATCH /follow` bez obserwowania daje 404. Obserwowanie własnego kanału daje 409.
 - **Dane firmy:** NIP z cyfrą kontrolną. Separatory są pomijane, a zapisuje się 10 cyfr.
-- **Pola z innych serwisów:** `offersCount` (catalog) i `rating` (engagement, `review.created`) są na razie zerowe. `avatarUrl` i `bannerUrl` są puste do czasu media-service. „O nas” zwraca puste `address` i `openingHours`, bo nie ma jeszcze endpointu do ich edycji.
+- **Awatar i baner:** `{mediaId}` pliku wysłanego przez właściciela kanału do media-service z przeznaczeniem `AVATAR` albo `BANNER`. Cudzy plik daje 403, plik o innym przeznaczeniu lub nieistniejący 400. Kanał zapisuje stały publiczny URL pliku i zwraca cały kanał.
+- **Weryfikacja:** `{documentMediaIds}` (1–5 plików `KYC_DOCUMENT` właściciela) ustawia status `PENDING`. Wymaga danych firmy (400), a zweryfikowany kanał daje 409. Ponowne zgłoszenie (np. dodatkowy dokument) jest dozwolone. Dokumenty trafiają do tabeli `verification_documents` dla panelu admina.
+- **Pola z innych serwisów:** `offersCount` (catalog) i `rating` (engagement, `review.created`) są na razie zerowe. „O nas” zwraca puste `address` i `openingHours`, bo nie ma jeszcze endpointu do ich edycji.
 - **`/internal/channels?ids=`:** id rozdzielone przecinkami, najwyżej 100. Nieznane są pomijane, kolejność jest jak w zapytaniu. Kształt odpowiedzi to `ChannelRef`.
+- **`/internal/channels/by-owner/{userId}`:** `ChannelRef` z `address` (domyślna lokalizacja ofert). Konto bez kanału daje 404.
 
 ## Zdarzenia Kafka
 
@@ -74,7 +79,7 @@ Wiersze z §17, w których występuje `channel` (publikuje lub słucha).
 ## Dane i zależności
 
 - **Magazyn danych:** PostgreSQL
-- **Zależności:** identity-service, media-service (awatar, baner)
+- **Zależności:** identity-service, media-service (awatar, baner, dokumenty weryfikacji)
 - **Kontrakty:** `rynek-contracts/openapi/` i `rynek-contracts/events/`
 - **Lokalne uruchomienie:** `rynek-infra/local/`
 

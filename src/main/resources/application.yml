@@ -18,6 +18,8 @@ spring:
 rynek:
   identity:
     url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+  media:
+    url: ${MEDIA_SERVICE_URL:http://localhost:8084}
   jwt:
     # Klucze publiczne pobierane leniwie przy pierwszym tokenie, więc serwis startuje bez działającego identity.
     jwk-set-uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}/internal/auth/jwks
