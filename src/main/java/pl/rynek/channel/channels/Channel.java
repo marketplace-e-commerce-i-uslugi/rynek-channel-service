@@ -9,9 +9,12 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.DynamicUpdate;
 
+/** {@code @DynamicUpdate}: niezależne zapisy z ustawień kanału (dane, awatar, baner, firma) nie cofają siebie nawzajem. */
 @Entity
 @Table(name = "channels")
+@DynamicUpdate
 public class Channel {
 
     @Id
