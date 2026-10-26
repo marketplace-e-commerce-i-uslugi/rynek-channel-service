@@ -5,8 +5,8 @@ import pl.rynek.channel.follow.FollowService;
 
 /**
  * Kanał. Kontrakt: {@code Channel} w rynek-frontend/src/app/core/api/models/channel.ts.
- * {@code offersCount} należy do catalog-service, a {@code rating} do engagement-service (zdarzenie {@code review.created});
- * do czasu integracji są zerowe. {@code following}/{@code notificationsOn} są puste dla niezalogowanych.
+ * {@code offersCount} (opublikowane oferty) ustawia catalog-service. {@code rating} należy do engagement-service
+ * (zdarzenie {@code review.created}) i do czasu integracji jest zerowy. {@code following}/{@code notificationsOn} są puste dla niezalogowanych.
  */
 public record ChannelResponse(
         String id,
@@ -35,7 +35,7 @@ public record ChannelResponse(
                 channel.getBannerUrl(),
                 channel.isVerified(),
                 stats.followersCount(),
-                0,
+                channel.getOffersCount(),
                 new Rating(0, 0),
                 stats.following(),
                 stats.notificationsOn());

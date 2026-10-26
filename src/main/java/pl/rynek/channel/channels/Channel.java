@@ -58,6 +58,9 @@ public class Channel {
     @Enumerated(EnumType.STRING)
     private VerificationStatus verificationStatus;
 
+    @Column(name = "offers_count")
+    private int offersCount;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -125,6 +128,15 @@ public class Channel {
     public void submitForVerification(Instant now) {
         this.verificationStatus = VerificationStatus.PENDING;
         this.updatedAt = now;
+    }
+
+    /** Licznik z catalog-service; nie zmienia {@code updatedAt}, bo to nie jest edycja kanału. */
+    public void changeOffersCount(int count) {
+        this.offersCount = count;
+    }
+
+    public int getOffersCount() {
+        return offersCount;
     }
 
     public boolean hasBusinessDetails() {

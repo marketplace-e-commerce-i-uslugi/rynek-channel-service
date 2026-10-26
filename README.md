@@ -51,6 +51,7 @@ Ekrany: 5 Profil sprzedawcy jako kanał. Zakładki kanału korzystają z innych 
 | GET | `/internal/channels/{channelId}` | Dane kanału dla innych serwisów | int |
 | GET | `/internal/channels?ids=` | Wsadowo (karty ofert) | int |
 | GET | `/internal/channels/by-owner/{userId}` | Kanał konta (catalog przy tworzeniu oferty) | int |
+| PUT | `/internal/channels/{channelId}/offers-count` | Liczba opublikowanych ofert (catalog) | int |
 
 ## Zachowanie
 
@@ -64,6 +65,7 @@ Ekrany: 5 Profil sprzedawcy jako kanał. Zakładki kanału korzystają z innych 
 - **Pola z innych serwisów:** `offersCount` (catalog) i `rating` (engagement, `review.created`) są na razie zerowe. „O nas” zwraca puste `address` i `openingHours`, bo nie ma jeszcze endpointu do ich edycji.
 - **`/internal/channels?ids=`:** id rozdzielone przecinkami, najwyżej 100. Nieznane są pomijane, kolejność jest jak w zapytaniu. Kształt odpowiedzi to `ChannelRef`.
 - **`/internal/channels/by-owner/{userId}`:** `ChannelRef` z `address` (domyślna lokalizacja ofert). Konto bez kanału daje 404.
+- **`offersCount`:** liczba opublikowanych ofert, którą catalog-service wysyła `PUT /internal/channels/{id}/offers-count` (`{count}`, 204) po publikacji, wstrzymaniu i usunięciu oferty. Zastępuje zdarzenia `offer.published`/`offer.unpublished`, dopóki nie ma Kafki.
 
 ## Zdarzenia Kafka
 

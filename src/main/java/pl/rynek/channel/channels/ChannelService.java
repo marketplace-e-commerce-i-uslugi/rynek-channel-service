@@ -69,6 +69,11 @@ public class ChannelService {
         return channels.findById(id).orElseThrow(ChannelService::notFound);
     }
 
+    @Transactional
+    public void setOffersCount(String channelId, int count) {
+        get(channelId).changeOffersCount(count);
+    }
+
     @Transactional(readOnly = true)
     public Channel getByHandle(String handle) {
         return channels.findByHandle(Handles.normalize(handle)).orElseThrow(ChannelService::notFound);
@@ -176,7 +181,7 @@ public class ChannelService {
     }
 
     private static ResponseStatusException notFound() {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Nie znaleźliśmy tego kanału.");
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Ten kanał nie istnieje. Sprawdź, czy adres jest poprawny.");
     }
 
     private static ResponseStatusException handleTaken() {

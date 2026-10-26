@@ -257,6 +257,19 @@ class ChannelFlowTests {
     }
 
     @Test
+    void catalogSetsOffersCount() throws Exception {
+        String id = createdId(UUID.randomUUID());
+        mvc.perform(get("/api/v1/channels/" + id)).andExpect(jsonPath("$.offersCount").value(0));
+        mvc.perform(put("/internal/channels/" + id + "/offers-count").contentType(MediaType.APPLICATION_JSON).content("{\"count\":3}"))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/channels/" + id)).andExpect(jsonPath("$.offersCount").value(3));
+        mvc.perform(put("/internal/channels/" + id + "/offers-count").contentType(MediaType.APPLICATION_JSON).content("{\"count\":-1}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(put("/internal/channels/" + UUID.randomUUID() + "/offers-count").contentType(MediaType.APPLICATION_JSON).content("{\"count\":1}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void ownerSetsAvatarAndBannerFromOwnUploads() throws Exception {
         UUID owner = UUID.randomUUID();
         String id = createdId(owner);

@@ -9,13 +9,18 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import pl.rynek.channel.api.dto.ChannelRefResponse;
+import pl.rynek.channel.api.dto.OffersCountRequest;
 import pl.rynek.channel.api.dto.OwnerChannelResponse;
 import pl.rynek.channel.channels.Channel;
 import pl.rynek.channel.channels.ChannelRepository;
@@ -71,6 +76,16 @@ public class InternalChannelsController {
         Map<UUID, Channel> found = channels.findAllById(requested).stream()
                 .collect(Collectors.toMap(Channel::getId, Function.identity()));
         return requested.stream().filter(found::containsKey).map(id -> ChannelRefResponse.of(found.get(id))).toList();
+    }
+
+    /**
+     * Liczba opublikowanych ofert kanału (catalog po publikacji, wstrzymaniu i usunięciu). Dostęp: int.
+     * Zastępuje zdarzenia {@code offer.published}/{@code offer.unpublished}, dopóki nie ma Kafki.
+     */
+    @PutMapping("/internal/channels/{channelId}/offers-count")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void setOffersCount(@PathVariable String channelId, @Valid @RequestBody OffersCountRequest request) {
+        channelService.setOffersCount(channelId, request.count());
     }
 
     private static UUID uuidOrNull(String value) {
