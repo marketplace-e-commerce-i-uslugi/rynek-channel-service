@@ -31,6 +31,7 @@ import pl.rynek.channel.api.dto.VerificationResponse;
 import pl.rynek.channel.channels.Channel;
 import pl.rynek.channel.channels.ChannelService;
 import pl.rynek.channel.config.Viewer;
+import pl.rynek.channel.engagement.RatingClient;
 import pl.rynek.channel.follow.FollowService;
 
 @RestController
@@ -39,11 +40,13 @@ public class ChannelsController {
     private final ChannelService channels;
     private final FollowService follows;
     private final Viewer viewer;
+    private final RatingClient ratings;
 
-    public ChannelsController(ChannelService channels, FollowService follows, Viewer viewer) {
+    public ChannelsController(ChannelService channels, FollowService follows, Viewer viewer, RatingClient ratings) {
         this.channels = channels;
         this.follows = follows;
         this.viewer = viewer;
+        this.ratings = ratings;
     }
 
     /**
@@ -55,7 +58,7 @@ public class ChannelsController {
         UUID userId = userId(token);
         Channel channel = channels.create(userId, request);
         return ResponseEntity.created(URI.create("/api/v1/channels/" + channel.getId()))
-                .body(ChannelResponse.of(channel, follows.stats(channel, Optional.of(userId))));
+                .body(ChannelResponse.of(channel, follows.stats(channel, Optional.of(userId)), rating(channel)));
     }
 
     /**
@@ -82,7 +85,7 @@ public class ChannelsController {
                                          @Valid @RequestBody UpdateChannelRequest request) {
         UUID userId = userId(token);
         Channel channel = channels.update(userId, channelId, request);
-        return ChannelResponse.of(channel, follows.stats(channel, Optional.of(userId)));
+        return ChannelResponse.of(channel, follows.stats(channel, Optional.of(userId)), rating(channel));
     }
 
     /**
@@ -93,7 +96,7 @@ public class ChannelsController {
                                      @Valid @RequestBody SetAvatarRequest request) {
         UUID userId = userId(token);
         Channel channel = channels.setAvatar(userId, channelId, request.mediaId());
-        return ChannelResponse.of(channel, follows.stats(channel, Optional.of(userId)));
+        return ChannelResponse.of(channel, follows.stats(channel, Optional.of(userId)), rating(channel));
     }
 
     /**
@@ -104,7 +107,7 @@ public class ChannelsController {
                                      @Valid @RequestBody SetBannerRequest request) {
         UUID userId = userId(token);
         Channel channel = channels.setBanner(userId, channelId, request.mediaId());
-        return ChannelResponse.of(channel, follows.stats(channel, Optional.of(userId)));
+        return ChannelResponse.of(channel, follows.stats(channel, Optional.of(userId)), rating(channel));
     }
 
     /**
@@ -170,8 +173,13 @@ public class ChannelsController {
         return ResponseEntity.noContent().build();
     }
 
+    private ChannelResponse.Rating rating(Channel channel) {
+        RatingClient.Rating r = ratings.of(channel.getId());
+        return new ChannelResponse.Rating(r.average(), r.count());
+    }
+
     private ChannelResponse view(Channel channel, HttpServletRequest http) {
-        return ChannelResponse.of(channel, follows.stats(channel, viewer.of(http)));
+        return ChannelResponse.of(channel, follows.stats(channel, viewer.of(http)), rating(channel));
     }
 
     private static UUID userId(Jwt token) {
