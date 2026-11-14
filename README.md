@@ -50,6 +50,7 @@ Ekrany: 5 Profil sprzedawcy jako kanał. Zakładki kanału korzystają z innych 
 | GET | `/api/v1/users/me/following` | Lista obserwowanych kanałów (boczne menu, „Obserwowane”) | user |
 | GET | `/internal/channels/{channelId}` | Dane kanału dla innych serwisów | int |
 | GET | `/internal/channels?ids=` | Wsadowo (karty ofert) | int |
+| GET | `/internal/channels/search-sync?afterId=&limit=` | Wszystkie kanały po id rosnąco, do 200 na stronę, z liczbą obserwujących i opublikowanych ofert (indeks search-service) | int |
 | GET | `/internal/channels/by-owner/{userId}` | Kanał konta (catalog przy tworzeniu oferty) | int |
 | PUT | `/internal/channels/{channelId}/offers-count` | Liczba opublikowanych ofert (catalog) | int |
 

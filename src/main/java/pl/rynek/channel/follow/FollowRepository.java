@@ -1,6 +1,7 @@
 package pl.rynek.channel.follow;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,6 +13,10 @@ import org.springframework.data.jpa.repository.Query;
 public interface FollowRepository extends JpaRepository<Follow, Follow.Key> {
 
     long countByChannelId(UUID channelId);
+
+    /** Wiersze {@code [channelId, liczba obserwujących]} dla kanałów, które mają obserwujących. */
+    @Query("select f.channelId, count(f) from Follow f where f.channelId in :channelIds group by f.channelId")
+    List<Object[]> countByChannelIds(Collection<UUID> channelIds);
 
     Optional<Follow> findByUserIdAndChannelId(UUID userId, UUID channelId);
 

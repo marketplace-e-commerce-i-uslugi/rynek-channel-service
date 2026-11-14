@@ -244,6 +244,44 @@ class ChannelFlowTests {
                 .andExpect(jsonPath("$.verified").value(false));
     }
 
+    /** Indeks wyszukiwarki: wszystkie kanały po id rosnąco, z liczbą obserwujących, w porcjach. */
+    @Test
+    void searchSyncListsAllChannelsWithFollowersInPages() throws Exception {
+        String popular = createdId(UUID.randomUUID());
+        String quiet = createdId(UUID.randomUUID());
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(post("/api/v1/channels/" + popular + "/follow").header(HttpHeaders.AUTHORIZATION, bearer(UUID.randomUUID())))
+                    .andExpect(status().isNoContent());
+        }
+        // Przeglądamy cały zbiór małymi stronami (baza jest wspólna dla testów), aż wskazanie kursora się skończy.
+        java.util.Map<String, Integer> followers = new java.util.HashMap<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        String after = null;
+        int pages = 0;
+        do {
+            var request = get("/internal/channels/search-sync").param("limit", "2");
+            if (after != null) {
+                request = request.param("afterId", after);
+            }
+            String body = mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            java.util.List<String> ids = com.jayway.jsonpath.JsonPath.read(body, "$.items[*].id");
+            java.util.List<Integer> counts = com.jayway.jsonpath.JsonPath.read(body, "$.items[*].followersCount");
+            for (int i = 0; i < ids.size(); i++) {
+                assertThat(seen.add(ids.get(i))).as("kanał %s nie powtarza się między stronami", ids.get(i)).isTrue();
+                followers.put(ids.get(i), counts.get(i));
+            }
+            after = com.jayway.jsonpath.JsonPath.read(body, "$.nextAfterId");
+            pages++;
+        } while (after != null && pages < 500);
+        assertThat(followers).containsEntry(popular, 2).containsEntry(quiet, 0);
+        mvc.perform(get("/internal/channels/search-sync").param("limit", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].handle").exists())
+                .andExpect(jsonPath("$.items[0].verified").value(false))
+                .andExpect(jsonPath("$.items[0].offersCount").exists());
+        mvc.perform(get("/internal/channels/search-sync").param("afterId", "to-nie-uuid")).andExpect(status().isBadRequest());
+    }
+
     @Test
     void internalChannelByOwner() throws Exception {
         UUID owner = UUID.randomUUID();
