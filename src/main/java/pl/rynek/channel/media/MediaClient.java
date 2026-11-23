@@ -37,6 +37,19 @@ public class MediaClient {
         }
     }
 
+    /** Krótko ważny podpisany adres pliku prywatnego (np. dokumentu weryfikacji) dla admina. */
+    public String signedUrl(UUID mediaId) {
+        try {
+            Url url = http.get().uri("/internal/media/{mediaId}/url", mediaId).retrieve().body(Url.class);
+            return url == null ? null : url.url();
+        } catch (RestClientResponseException | ResourceAccessException e) {
+            return null;
+        }
+    }
+
+    private record Url(String url) {
+    }
+
     /** {@code url} jest pusty dla plików prywatnych (dokumenty weryfikacji). */
     public record MediaFile(UUID id, UUID ownerId, String purpose, String contentType, String url) {
     }

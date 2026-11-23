@@ -144,6 +144,32 @@ public class ChannelService {
         return channel;
     }
 
+    /** Dokument weryfikacji: id pliku i czas zgłoszenia. */
+    public record VerificationDocument(UUID mediaId, Instant submittedAt) {
+    }
+
+    /** Dokumenty zgłoszone do weryfikacji kanału (najstarsze pierwsze). */
+    @Transactional(readOnly = true)
+    public List<VerificationDocument> verificationDocuments(UUID channelId) {
+        return jdbc.sql("SELECT media_id, submitted_at FROM verification_documents WHERE channel_id = ? ORDER BY submitted_at, media_id")
+                .params(channelId)
+                .query((rs, n) -> new VerificationDocument(rs.getObject("media_id", UUID.class), rs.getTimestamp("submitted_at").toInstant()))
+                .list();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Channel> pendingVerifications() {
+        return channels.findPendingVerification();
+    }
+
+    /** Decyzja admina o wniosku: zatwierdzenie daje znak weryfikacji, odrzucenie pozwala zgłosić dokumenty ponownie. */
+    @Transactional
+    public Channel decideVerification(String channelId, boolean approved) {
+        Channel channel = get(channelId);
+        channel.decideVerification(approved, clock.instant());
+        return channel;
+    }
+
     /** Kanał zalogowanego sprzedawcy; cudzy kanał daje 403 (endpointy {@code seller}). */
     @Transactional(readOnly = true)
     public Channel owned(UUID userId, String channelId) {

@@ -66,6 +66,9 @@ class ChannelFlowTests {
     @MockitoBean
     MediaClient mediaClient;
 
+    @MockitoBean
+    pl.rynek.channel.notification.NotificationClient notifications;
+
     @Autowired
     JdbcClient jdbc;
 
@@ -73,10 +76,12 @@ class ChannelFlowTests {
     void tokensAreUserIds() {
         given(jwtDecoder.decode(anyString())).willAnswer(call -> {
             String token = call.getArgument(0);
-            if (!token.startsWith("user-")) {
+            boolean admin = token.startsWith("admin-");
+            if (!token.startsWith("user-") && !admin) {
                 throw new BadJwtException("Nieważny token");
             }
-            return Jwt.withTokenValue(token).header("alg", "RS256").subject(token.substring(5))
+            return Jwt.withTokenValue(token).header("alg", "RS256").subject(token.substring(token.indexOf('-') + 1))
+                    .claim("roles", admin ? java.util.List.of("ADMIN", "BUYER") : java.util.List.of("BUYER"))
                     .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(900)).build();
         });
     }
@@ -368,6 +373,47 @@ class ChannelFlowTests {
                 .andExpect(jsonPath("$.status").value("PENDING"));
         assertThat(jdbc.sql("SELECT count(*) FROM verification_documents WHERE channel_id = ?")
                 .param(UUID.fromString(id)).query(Integer.class).single()).isEqualTo(1);
+    }
+
+    @Test
+    void adminDecidesVerificationApplications() throws Exception {
+        UUID owner = UUID.randomUUID();
+        UUID admin = UUID.randomUUID();
+        String id = createdId(owner);
+        UUID document = file(owner, "KYC_DOCUMENT", null);
+        given(mediaClient.signedUrl(document)).willReturn("http://localhost:8333/signed/doc");
+        businessDetails(owner, id, "{\"companyName\":\"Elektro Market Sp. z o.o.\",\"nip\":\"526-104-08-28\",\"registeredAddress\":\"ul. Handlowa 10, Warszawa\"}")
+                .andExpect(status().isOk());
+
+        // Bez wniosku kanał nie czeka na decyzję; zwykły użytkownik nie ma dostępu do panelu.
+        mvc.perform(post("/api/v1/admin/channel-verifications/" + id + "/approve").header(HttpHeaders.AUTHORIZATION, "Bearer admin-" + admin))
+                .andExpect(status().isConflict());
+        verification(owner, id, "[\"" + document + "\"]").andExpect(status().isOk());
+        mvc.perform(get("/api/v1/admin/channel-verifications").header(HttpHeaders.AUTHORIZATION, bearer(owner))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/admin/channel-verifications")).andExpect(status().isUnauthorized());
+
+        mvc.perform(get("/api/v1/admin/channel-verifications").header(HttpHeaders.AUTHORIZATION, "Bearer admin-" + admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.channelId == '" + id + "')].nip").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.channelId == '" + id + "')].documents[0].url").value("http://localhost:8333/signed/doc"));
+
+        mvc.perform(post("/api/v1/admin/channel-verifications/" + id + "/reject").header(HttpHeaders.AUTHORIZATION, "Bearer admin-" + admin))
+                .andExpect(status().isNoContent());
+        org.mockito.Mockito.verify(notifications).send(org.mockito.ArgumentMatchers.eq(owner), org.mockito.ArgumentMatchers.eq("messages"),
+                org.mockito.ArgumentMatchers.eq("Wniosek o weryfikację odrzucony"), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq("/sprzedawca/kanal"), org.mockito.ArgumentMatchers.anyString());
+        mvc.perform(get("/api/v1/channels/" + id + "/verification").header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(jsonPath("$.status").value("REJECTED"));
+        // Po odrzuceniu sprzedawca zgłasza dokumenty ponownie, a admin zatwierdza.
+        verification(owner, id, "[\"" + document + "\"]").andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING"));
+        mvc.perform(post("/api/v1/admin/channel-verifications/" + id + "/approve").header(HttpHeaders.AUTHORIZATION, "Bearer admin-" + admin))
+                .andExpect(status().isNoContent());
+        org.mockito.Mockito.verify(notifications).send(org.mockito.ArgumentMatchers.eq(owner), org.mockito.ArgumentMatchers.eq("messages"),
+                org.mockito.ArgumentMatchers.eq("Kanał zweryfikowany"), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq("/sprzedawca/kanal"), org.mockito.ArgumentMatchers.anyString());
+        mvc.perform(get("/api/v1/channels/" + id)).andExpect(jsonPath("$.verified").value(true));
+        mvc.perform(post("/api/v1/admin/channel-verifications/" + id + "/approve").header(HttpHeaders.AUTHORIZATION, "Bearer admin-" + admin))
+                .andExpect(status().isConflict());
     }
 
     private UUID file(UUID owner, String purpose, String url) {

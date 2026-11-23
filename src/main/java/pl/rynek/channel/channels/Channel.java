@@ -130,6 +130,16 @@ public class Channel {
         this.updatedAt = now;
     }
 
+    /** Decyzja admina o wniosku ({@code PENDING}); {@code VERIFIED} daje znak weryfikacji, {@code REJECTED} pozwala zgłosić dokumenty ponownie. */
+    public void decideVerification(boolean approved, Instant now) {
+        if (verificationStatus != VerificationStatus.PENDING) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                    "Ten kanał nie czeka na decyzję o weryfikacji.");
+        }
+        this.verificationStatus = approved ? VerificationStatus.VERIFIED : VerificationStatus.REJECTED;
+        this.updatedAt = now;
+    }
+
     /** Licznik z catalog-service; nie zmienia {@code updatedAt}, bo to nie jest edycja kanału. */
     public void changeOffersCount(int count) {
         this.offersCount = count;
